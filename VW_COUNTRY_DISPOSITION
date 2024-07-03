@@ -1,0 +1,125 @@
+
+  CREATE OR REPLACE FORCE EDITIONABLE VIEW "SVC_HUBBLE"."VW_COUNTRY_DISPOSITION" ("EVNT_R_OBJECT_ID", "EVNT_EVENT_NAME", "EVNT_CONFIG_UID", "EVNT_FULL_DESCRIPTION", "EVNT_PRODUCT_FAMILY_NAME", "EVNT_PRODUCT_FAMILY_UID", "EVNT_GLOBAL_PRODUCT_NAME", "EVNT_GLOBAL_PRODUCT_UID", "EVNT_MARKET_NAME", "EVNT_CLASSIFICATION_GROUP", "EVNT_CLASSIFICATION_SUBGROUP", "EVNT_CLASSIFICATION_ARTIFACT", "EVNT_CCDS_DISTRIBUTION_DATE", "EVNT_TARGET_COMPLETION_DATE", "EVNT_ASSEMBLY_ID", "EVNT_SUBMISSION_PLANNED_DATE", "EVNT_VERSION_NUMBER", "EVNT_CCDS_APPROVAL_DATE", "CD_A_ACTUAL_COMPLETION_DATE", "CD_ACTION_DEFINITION_NAME", "CD_A_OUTCOME", "CD_A_OUTCOME_COMMENT", "DC_A_MARKET_NAME") DEFAULT COLLATION "USING_NLS_COMP"  AS 
+  SELECT DISTINCT
+       ctr_ob.R_OBJECT_ID EVNT_R_OBJECT_ID,
+       ctr_ob.OWNING_OBJECT_NAME EVNT_EVENT_NAME,
+       ctr_ob.owning_object_uid EVNT_CONFIG_UID,
+       MGRM.FULL_DESCRIPTION EVNT_FULL_DESCRIPTION,
+       MGRM.PRODUCT_FAMILY_NAME EVNT_PRODUCT_FAMILY_NAME,
+       MGRM.PRODUCT_FAMILY_UID EVNT_PRODUCT_FAMILY_UID,
+       MGRM.GLOBAL_PRODUCT_NAME EVNT_GLOBAL_PRODUCT_NAME,
+       MGRM.GLOBAL_PRODUCT_UID EVNT_GLOBAL_PRODUCT_UID,
+       DC_A_MARKET_NAME ---MGRM.MARKET_NAME 
+	   EVNT_MARKET_NAME,
+       MGRM.CLASSIFICATION_GROUP EVNT_CLASSIFICATION_GROUP,
+       MGRM.CLASSIFICATION_SUBGROUP EVNT_CLASSIFICATION_SUBGROUP,
+       MGRM.CLASSIFICATION_ARTIFACT EVNT_CLASSIFICATION_ARTIFACT,
+       MGRM.CCDS_DISTRIBUTION_DATE EVNT_CCDS_DISTRIBUTION_DATE,
+       ctr_ob.CD_A_TARGET_COMPLETION_DATE EVNT_TARGET_COMPLETION_DATE,
+       null ---MGRM.ASSEMBLY_ID 
+	   EVNT_ASSEMBLY_ID,
+       (SELECT MAX (SUBMISSION_PLANNED_DATE)
+          FROM COSMOSDBEXPORT.DOCUMENT a
+         WHERE     CLASSIFICATION_ARTIFACT = 'Global Assembly'
+               AND a.R_OBJECT_ID = MGRM.ASSEMBLY_ID
+               AND SUBMISSION_PLANNED_DATE IS NOT NULL)
+          EVNT_SUBMISSION_PLANNED_DATE,
+       (SELECT MAX (VERSION_NUMBER)
+          FROM COSMOSDBEXPORT.DOCUMENT a
+         WHERE     CLASSIFICATION_ARTIFACT = 'Global Assembly'
+               AND a.R_OBJECT_ID = MGRM.ASSEMBLY_ID
+               AND VERSION_NUMBER IS NOT NULL)
+          EVNT_VERSION_NUMBER,
+       (SELECT MAX (CCDS_APPROVAL_DATE)
+          FROM COSMOSDBEXPORT.DOCUMENT a
+         WHERE     CLASSIFICATION_ARTIFACT = 'Global Assembly'
+               AND a.R_OBJECT_ID = MGRM.ASSEMBLY_ID
+               AND CCDS_APPROVAL_DATE IS NOT NULL)
+          EVNT_CCDS_APPROVAL_DATE,
+       ---ACT_R_OBJECT_ID,
+       CD_A_ACTUAL_COMPLETION_DATE,
+       CD_ACTION_DEFINITION_NAME,
+       CD_A_OUTCOME,
+       CD_A_OUTCOME_COMMENT,
+       DC_A_MARKET_NAME
+  FROM  
+(SELECT DISTINCT act.r_object_id,
+               act.ACTION_DEFINITION_NAME CD_ACTION_DEFINITION_NAME,
+			   act.ACTION_STATUS,
+               TRIM (act.ACTUAL_COMPLETION_DATE) CD_A_ACTUAL_COMPLETION_DATE,
+			   act.TARGET_COMPLETION_DATE CD_A_TARGET_COMPLETION_DATE,
+               ---act.INSTRUCTIONS,
+               act.OUTCOME CD_A_OUTCOME,
+               act.OUTCOME_COMMENT CD_A_OUTCOME_COMMENT,
+               act.OUTCOME_SATISFACTORY,
+               act.OWNING_OBJECT_NAME,
+               act.OWNING_OBJECT_UID,
+               act_ref.MARKET_NAME DC_A_MARKET_NAME /*,act.PROCESS_PHASE,act.STAGE_DEFINITION_NAME,act.STAGE_DEFINITION_UID,
+                                     act.TARGET_COMPLETION_DATE,act.TASK_TEMPLATE_NAME*/
+          FROM COSMOSDBEXPORT.action_record act,
+               cosmosdbexport.object act_ob,
+               cosmosdbexport.action_record_r act_ref
+         WHERE     act.r_object_id = act_ob.r_object_id
+               AND act.r_object_id = act_ref.ACTION_RECORD_R_OBJECT_ID
+               AND (   act.action_definition_uid IN
+                          (SELECT od.config_uid
+                             FROM cosmosdbexport.action_definition ad,
+                                  cosmosdbexport.object od
+                            WHERE     ad.r_object_id = od.r_object_id
+                                  AND od.object_name = 'Country Disposition')
+                    OR 
+					act.action_definition_name = 'Country Disposition Set'))
+       ctr_ob,
+	   (SELECT DISTINCT FULL_DESCRIPTION,
+			PRODUCT_FAMILY_NAME,
+			PRODUCT_FAMILY_UID,
+			GLOBAL_PRODUCT_NAME,
+			GLOBAL_PRODUCT_UID,
+			CLASSIFICATION_GROUP,
+			CLASSIFICATION_SUBGROUP,
+			CLASSIFICATION_ARTIFACT,
+			CCDS_DISTRIBUTION_DATE,
+		    ASSEMBLY_ID,
+			config_uid,
+			OBJECT_NAME
+          FROM (SELECT *
+                  FROM COSMOSDBEXPORT.SUBMISSION_MANAGER
+                /* WHERE     classification_subgroup IN ('Labeling')
+                       AND classification_artifact IN ('Labeling', 'CCDS')*/
+                       )
+               MGR,
+               COSMOSDBEXPORT.REGULATORY_EVENT EVNT,
+               (/*SELECT DISTINCT SUBMGR_A.SUBMISSION_MANAGER_R_OBJECT_ID,
+                       SUBMGR_A.PRODUCT_FAMILY_NAME,
+                       SUBMGR_A.PRODUCT_FAMILY_UID,                       
+                       SUBMGR_A.GLOBAL_PRODUCT_NAME,
+                       SUBMGR_A.GLOBAL_PRODUCT_UID,
+                       SUBMGR_A.ASSEMBLY_ID
+                  FROM COSMOSDBEXPORT.SUBMISSION_MANAGER_R SUBMGR_A where  PRODUCT_FAMILY_NAME is not null*/
+                    SELECT  SUBMGR_A.SUBMISSION_MANAGER_R_OBJECT_ID,
+                  LISTAGG (DISTINCT SUBMGR_A.PRODUCT_FAMILY_NAME, ',')
+                  WITHIN GROUP (ORDER BY SUBMGR_A.R_INDEX)
+                  AS PRODUCT_FAMILY_NAME,
+                  LISTAGG (DISTINCT SUBMGR_A.PRODUCT_FAMILY_UID, ',')
+                  WITHIN GROUP (ORDER BY SUBMGR_A.R_INDEX)
+                  AS PRODUCT_FAMILY_UID,
+                  LISTAGG (DISTINCT SUBMGR_A.GLOBAL_PRODUCT_NAME, ',')
+                  WITHIN GROUP (ORDER BY SUBMGR_A.R_INDEX)
+                  AS GLOBAL_PRODUCT_NAME,
+                  LISTAGG (DISTINCT SUBMGR_A.GLOBAL_PRODUCT_UID, ',')
+                  WITHIN GROUP (ORDER BY SUBMGR_A.R_INDEX)
+                  AS GLOBAL_PRODUCT_UID,
+                  LISTAGG (DISTINCT SUBMGR_A.ASSEMBLY_ID, ',')
+                  WITHIN GROUP (ORDER BY SUBMGR_A.R_INDEX)
+                  AS ASSEMBLY_ID   FROM COSMOSDBEXPORT.SUBMISSION_MANAGER_R SUBMGR_A 
+                  where (PRODUCT_FAMILY_UID is not null or GLOBAL_PRODUCT_NAME is not null or ASSEMBLY_ID is not null)
+                  group by SUBMISSION_MANAGER_R_OBJECT_ID
+                  ) SUBMGR_R
+         WHERE     MGR.R_OBJECT_ID = EVNT.R_OBJECT_ID
+               AND MGR.R_OBJECT_ID = SUBMGR_R.SUBMISSION_MANAGER_R_OBJECT_ID --- and MGRM.DC_A_MARKET_NAME=SUBMGR_R.MARKET_NAME
+                                                                            ) MGRM
+	WHERE      ctr_ob.owning_object_uid=MGRM.config_uid(+) /* commented as part of Hubble1.2 fix(+)*/
+       AND ctr_ob.OWNING_OBJECT_NAME=MGRM.OBJECT_NAME(+)/* commented as part of Hubble1.2 fix(+)*/
+      --- AND ctr_ob.DC_A_MARKET_NAME=MGRM.MARKET_NAME(+)/*commented as part of Hubble1.2 (+)*/
+	  and     CLASSIFICATION_GROUP IN ('Labeling')
+                       AND CLASSIFICATION_ARTIFACT IN ('Labeling', 'CCDS');
