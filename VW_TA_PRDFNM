@@ -1,0 +1,6 @@
+
+  CREATE OR REPLACE FORCE EDITIONABLE VIEW "SVC_HUBBLE"."VW_TA_PRDFNM" ("PRODUCT", "TA") DEFAULT COLLATION "USING_NLS_COMP"  AS 
+  SELECT PRODUCT, TA
+        FROM (select  distinct product,trim(regexp_substr(TA,'[^|]+',1,level)) as TA from ta_drug_list 
+ connect by trim(regexp_substr(TA,'[^|]+',1,level)) is not null)
+    ORDER BY TA;
