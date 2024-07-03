@@ -62,7 +62,13 @@
                    pr.INDICATION_STATUS_DATE,
                    pr.INDICATION_STATUS,
                    f.r_version_label,
-                   M.ROSTER_REGION,M.IS_EEA, M.IS_EU,
+                   M.ROSTER_REGION,(SELECT MAX (IS_EEA)
+                FROM COSMOSDBEXPORT.MARKET
+               WHERE ISO_COUNTRY_NAME = p.MARKET_NAME)
+                 IS_EEA,(SELECT MAX (IS_EU)
+                FROM COSMOSDBEXPORT.MARKET
+               WHERE ISO_COUNTRY_NAME = p.MARKET_NAME)
+               IS_EU,
 				   pd.CLASSIFICATION_DOMAIN,/* added as part of Hubble 1.2 in Jun2024*/
 				   pd.CLASSIFICATION_GROUP,/* added as part of Hubble 1.2 in Jun2024*/
 		           pd.CLASSIFICATION_SUBGROUP/* added as part of Hubble 1.2 in Jun2024*/
