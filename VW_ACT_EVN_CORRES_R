@@ -1,0 +1,69 @@
+
+  CREATE OR REPLACE FORCE EDITIONABLE VIEW "SVC_HUBBLE"."VW_ACT_EVN_CORRES_R" ("ACTIVITY_ID", "EVENT_ID", "CORR_LINK_ID", "EVENT_TO_ASS_LINK_ID", "ACTIVITY_TO_ASS_LINK_ID", "ASSEMBLY_ID", "CORRESPONDENCE_ID") DEFAULT COLLATION "USING_NLS_COMP"  AS 
+  with      Assemblies as(
+        
+        select dca.r_object_id as ASSEMBLY_ID,
+        dca.I_CHRONICLE_ID ,
+        smr.submission_manager_r_object_id 
+         FROM COSMOSDBEXPORT.document_r  DOCUMENT_R
+           INNER JOIN COSMOSDBEXPORT.document dca
+               ON dca.R_OBJECT_ID = DOCUMENT_R.DOCUMENT_R_OBJECT_ID
+           LEFT JOIN COSMOSDBEXPORT.submission_manager_r smr
+               ON dca.I_CHRONICLE_ID = smr.ASSEMBLY_ID
+                WHERE   dca.CLASSIFICATION_SUBGROUP IN
+                   ('Main Assembly', 'Sub Assembly')
+           AND 
+        (dca.PROCESS_NAME IN
+                   ('Global Assembly Core Process',
+                    'Local Assembly Core Process') )
+           AND (dca.classification_artifact IN ('Global Assembly',
+                                               'NDA Safety Update',
+                                               'Other Sub Assembly',
+                                               'PDMA',
+                                               'Submission Assembly'))
+           AND (dca.PROCESS_PHASE IN
+
+                   ('Compile, Publish, Submit','Closed',
+                    'Create/Manage Content',
+                    'Manage Commitment'))
+           AND dca.is_assembly = 'Y' 
+        ),
+        Correspondence as(
+
+        select A.r_object_id as Correspondence_ID,D.submission_manager_r_object_id
+        from
+        COSMOSDBEXPORT.DOCUMENT A
+       INNER JOIN COSMOSDBEXPORT.DOCUMENT_R B
+          ON A.r_object_id = B.DOCUMENT_R_OBJECT_ID
+       LEFT JOIN
+       (SELECT C.correspondence_id,
+               C.submission_manager_r_object_id,
+               D.r_object_id,
+               D.object_name,
+               C.regulatory_application_name,
+               D.IS_ACTIVE
+          FROM COSMOSDBEXPORT.submission_manager_r C
+               INNER JOIN COSMOSDBEXPORT.SUBMISSION_MANAGER D
+                  ON D.r_object_id = C.submission_manager_r_object_id
+         WHERE C.correspondence_id IS NOT NULL) D
+          ON   D.correspondence_id = A.r_object_id 
+
+
+
+ WHERE A.CLASSIFICATION_DOMAIN = 'Correspondence'
+
+        ),
+UNIONs as (
+
+select distinct '' as Event_id,vw_act_evn_corres.activity_object_id as Activity_ID,
+vw_act_evn_corres.activity_object_id as Corr_link_ID,vw_act_evn_corres.activity_object_id as event_to_ass_link_ID,
+vw_act_evn_corres.activity_object_id as Activity_to_ass_link_ID from VW_ACT_EVN_CORRES
+union all
+select distinct vw_act_evn_corres.event_object_id as Event_id,'' as Activity_ID,
+vw_act_evn_corres.event_object_id as corr_link_ID,vw_act_evn_corres.event_object_id as event_to_ass_link_ID,
+vw_act_evn_corres.event_object_id as Activity_to_ass_link_ID from VW_ACT_EVN_CORRES
+)
+
+select distinct a.Activity_ID,a.Event_id,a.corr_link_ID,event_to_ass_link_ID,Activity_to_ass_link_ID,b.assembly_id,c.correspondence_id from unions a
+left join Assemblies b on a.event_to_ass_link_ID = b.submission_manager_r_object_id
+left join correspondence c on a.Corr_link_ID = c.submission_manager_r_object_id;
