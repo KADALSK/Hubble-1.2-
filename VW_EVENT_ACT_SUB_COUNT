@@ -1,0 +1,27 @@
+
+  CREATE OR REPLACE FORCE EDITIONABLE VIEW "SVC_HUBBLE"."VW_EVENT_ACT_SUB_COUNT" ("DOCUMENT_R_OBJECT_ID", "SUBMISSION_ID") DEFAULT COLLATION "USING_NLS_COMP"  AS 
+  SELECT DISTINCT
+           DOCUMENT_R_OBJECT_ID, submission_manager.R_object_id Submission_ID
+      FROM COSMOSDBEXPORT.document_r  DOCUMENT_R
+           INNER JOIN COSMOSDBEXPORT.document dca
+               ON dca.R_OBJECT_ID = DOCUMENT_R.DOCUMENT_R_OBJECT_ID
+           LEFT JOIN COSMOSDBEXPORT.submission_manager_r smr
+               ON dca.I_CHRONICLE_ID = smr.ASSEMBLY_ID
+           LEFT JOIN COSMOSDBEXPORT.submission_manager submission_manager
+               ON submission_manager.R_OBJECT_ID =
+                  smr.SUBMISSION_MANAGER_R_OBJECT_ID
+     WHERE     dca.CLASSIFICATION_SUBGROUP IN
+                   ('Main Assembly')
+           AND dca.PROCESS_NAME IN
+                   ('Global Assembly Core Process',
+                    'Local Assembly Core Process')
+           AND dca.classification_artifact IN ('Global Assembly',
+                                               'NDA Safety Update',
+                                               'Other Sub Assembly',
+                                               'PDMA',
+                                               'Submission Assembly')
+           AND dca.PROCESS_PHASE IN
+                   ('Compile, Publish, Submit',
+                    'Create/Manage Content',
+                    'Manage Commitment')
+           AND dca.is_assembly = 'Y' and document_r.r_version_label = 'CURRENT';
