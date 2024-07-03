@@ -1,0 +1,260 @@
+
+  CREATE OR REPLACE FORCE EDITIONABLE VIEW "SVC_HUBBLE"."VW_AUTH_PRODUCT_REG_PSMF" ("R_OBJECT_ID", "MARKETING_AUTHORIZATION_NUMBER", "R_INDEX", "AUTHORISATION_HOLDER_NAME", "AUTHORISATION_HOLDER_UID", "AUTHORISATION_STATUS", "AUTHORISATION_STATUS_DATE", "AUTHORISATION_TYPE", "DATE_OF_FIRST_AUTHORISATION", "AUTHORIZATION_COUNTRY", "MARKET_NAME", "REVIEWING_MARKET_NAME", "PRODUCT_FAMILY_NAME", "PRODUCT_FAMILY_UID", "REGULATORY_APPLICATION_NAME", "REGULATORY_APPLICATION_UID", "VALIDITY_PERIOD_END", "VALIDITY_PERIOD_START", "MEDICINAL_PRODUCT_NAME", "PACKAGED_PRODUCT_NAME", "R_CREATOR_NAME", "R_MODIFY_DATE", "R_MODIFIER", "R_CREATION_DATE", "BUSINESS_UNIT", "CONCEPT", "INFORMATION_CLASSIFICATION", "SECURITY_DOMAIN", "IS_ACTIVE", "APPLICATION_NUMBER", "APPLICATION_TYPE_NAME", "TYPE_OF_PROCEDURE", "BASE_APPLICATION_TYPE", "TRADE_NAME", "DOSE_FORM_NAME", "REGULATORY_APPLICATION_R_OBJECT_ID", "DOSE_STRENGTH_NAME", "CLASSIFICATION_DOMAIN", "MARKET_ROLE", "IS_EEA", "IS_EU", "ROSTER_REGION") DEFAULT COLLATION "USING_NLS_COMP"  AS 
+  with TR
+        AS
+            (SELECT DISTINCT CONFIG_UID,
+                             MEDICINAL_PRODUCT_UID,
+                             TRADE_NAME,
+                             DOSE_FORM_NAME,
+                             DOSE_STRENGTH_NAME,
+                             MARKET_UID,
+                             PRODUCT_FAMILY_UID,
+                             HISTORIC_NAME_VALUE,
+                             CLASSIFICATION_DOMAIN
+               FROM COSMOSDBEXPORT.PRODUCT_R, COSMOSDBEXPORT.PRODUCT
+              WHERE PRODUCT_R_OBJECT_ID = R_OBJECT_ID),
+        MKT
+        AS
+            (SELECT DISTINCT CONFIG_UID,
+                             OBJECT_NAME,
+                             APPLICATION_TYPE_NAME,
+                             APPLICATION_TYPE_UID,
+                             AUTHORISATION_HOLDER_NAME,
+                             AUTHORISATION_HOLDER_UID,
+                             GROUP_MEMBER_NAME,
+                             GROUP_MEMBER_UID
+               FROM COSMOSDBEXPORT.MARKET    MK,
+                    COSMOSDBEXPORT.OBJECT    OB,
+                    COSMOSDBEXPORT.MARKET_R  MKR
+              WHERE     MK.R_OBJECT_ID = OB.R_OBJECT_ID
+                    AND MK.R_OBJECT_ID = MKR.MARKET_R_OBJECT_ID),
+        RAPPR
+        AS
+            (SELECT DISTINCT REGULATORY_APPLICATION_R_OBJECT_ID,
+                             R_INDEX,
+                             MARKET_NAME,
+                             MARKET_ROLE,
+                             MARKET_UID     REVIEWING_MARKET_NAME,
+                             REVIEWING_MARKET_UID,
+                             STUDY_NUMBER
+               FROM cosmosdbexport.regulatory_application_r outr
+              WHERE     MARKET_ROLE IN
+                            ('Reviewing Country',
+                             'Rapporteur',
+                             'Reference Member State')
+                    AND R_INDEX IN
+                            (SELECT MAX (R_INDEX)
+                               FROM cosmosdbexport.regulatory_application_r
+                                    inr
+                              WHERE     inr.MARKET_ROLE = outr.MARKET_ROLE
+                                    AND inr.REGULATORY_APPLICATION_R_OBJECT_ID =
+                                        outr.REGULATORY_APPLICATION_R_OBJECT_ID)),
+        PAUTHR
+        AS
+            (SELECT PRODUCT_AUTHORISATION_R_OBJECT_ID,
+                    MEDICINAL_PRODUCT_UID      MEDICINAL_PRODUCT_UID_AUTH,
+                    MEDICINAL_PRODUCT_NAME     MEDICINAL_PRODUCT_NAME_AUTH,
+                    PACKAGED_PRODUCT_NAME      PACKAGED_PRODUCT_NAME_AUTH
+               FROM COSMOSDBEXPORT.PRODUCT_AUTHORISATION_R OUTR
+              WHERE R_INDEX IN
+                        (SELECT MAX (R_INDEX)
+                           FROM COSMOSDBEXPORT.PRODUCT_AUTHORISATION_R INR
+                          WHERE     INR.PRODUCT_AUTHORISATION_R_OBJECT_ID =
+                                    OUTR.PRODUCT_AUTHORISATION_R_OBJECT_ID
+                                AND (   MEDICINAL_PRODUCT_UID IS NOT NULL
+                                     OR MEDICINAL_PRODUCT_NAME IS NOT NULL
+                                     OR PACKAGED_PRODUCT_NAME IS NOT NULL)))
+      SELECT DISTINCT
+             A.R_OBJECT_ID,
+             AO.OBJECT_NAME
+                 Marketing_Authorization_Number,
+             (CASE
+                  WHEN TRIM (APPL.TYPE_OF_PROCEDURE) =
+                       'Mutual Recognition'
+                  THEN
+                      ((SELECT DISTINCT R_INDEX
+                          FROM RAPPR
+                         WHERE     REGULATORY_APPLICATION_R_OBJECT_ID =
+                                   APPL.R_OBJECT_ID
+                               AND TRIM (MARKET_ROLE) =
+                                   TRIM ('Reference Member State')))
+                  WHEN TRIM (APPL.TYPE_OF_PROCEDURE) = 'Centralised'
+                  THEN
+                      ((SELECT DISTINCT R_INDEX
+                          FROM RAPPR
+                         WHERE     REGULATORY_APPLICATION_R_OBJECT_ID =
+                                   APPL.R_OBJECT_ID
+                               AND TRIM (MARKET_ROLE) =
+                                   TRIM ('Rapporteur')))
+                  ELSE
+                      ((SELECT DISTINCT R_INDEX
+                          FROM RAPPR
+                         WHERE REGULATORY_APPLICATION_R_OBJECT_ID =
+                               APPL.R_OBJECT_ID))
+              END)
+                 AS R_INDEX,
+             A.AUTHORISATION_HOLDER_NAME,
+             A.AUTHORISATION_HOLDER_UID,
+             A.AUTHORISATION_STATUS,
+             A.AUTHORISATION_STATUS_DATE,
+             A.AUTHORISATION_TYPE,
+             A.DATE_OF_FIRST_AUTHORISATION,
+             A.MARKET_NAME
+                 AS AUTHORIZATION_COUNTRY,
+             /*(SELECT max OBJECT_NAME
+                FROM MKT, RAPPR
+               WHERE     CONFIG_UID = MARKET_IID
+                     AND REGULATORY_APPLICATION_R_OBJECT_ID = APPL.R_OBJECT_ID
+                     AND AUTHORISATION_HOLDER_UID = A.AUTHORISATION_HOLDER_UID
+                     --AND APPLICATION_TYPE_UID = E.CONFIG_UID
+                     )*/
+             A.MARKET_NAME
+                 AS market_name,
+             NVL (
+                 (CASE
+                      WHEN TRIM (APPL.TYPE_OF_PROCEDURE) =
+                           'Mutual Recognition'
+                      THEN
+                          ((SELECT DISTINCT MARKET_NAME
+                              FROM RAPPR
+                             WHERE     REGULATORY_APPLICATION_R_OBJECT_ID =
+                                       APPL.R_OBJECT_ID
+                                   AND TRIM (MARKET_ROLE) =
+                                       TRIM ('Reference Member State')))
+                      WHEN TRIM (APPL.TYPE_OF_PROCEDURE) =
+                           'Centralised'
+                      THEN
+                          ((SELECT DISTINCT MARKET_NAME
+                              FROM RAPPR
+                             WHERE     REGULATORY_APPLICATION_R_OBJECT_ID =
+                                       APPL.R_OBJECT_ID
+                                   AND TRIM (MARKET_ROLE) =
+                                       TRIM ('Rapporteur')))
+                      ELSE
+                          ((SELECT DISTINCT MARKET_NAME
+                              FROM RAPPR
+                             WHERE REGULATORY_APPLICATION_R_OBJECT_ID =
+                                   APPL.R_OBJECT_ID))
+                  END),
+                 A.MARKET_NAME)
+                 AS REVIEWING_MARKET_NAME,
+             A.PRODUCT_FAMILY_NAME,
+             A.PRODUCT_FAMILY_UID,
+             A.REGULATORY_APPLICATION_NAME,
+             A.REGULATORY_APPLICATION_UID,
+             A.VALIDITY_PERIOD_END,
+             A.VALIDITY_PERIOD_START,
+             (SELECT MEDICINAL_PRODUCT_NAME_AUTH
+                FROM PAUTHR
+               WHERE PRODUCT_AUTHORISATION_R_OBJECT_ID = A.R_OBJECT_ID)
+                 AS MEDICINAL_PRODUCT_NAME,
+             (SELECT PACKAGED_PRODUCT_NAME_AUTH
+                FROM PAUTHR
+               WHERE PRODUCT_AUTHORISATION_R_OBJECT_ID = A.R_OBJECT_ID)
+                 AS PACKAGED_PRODUCT_NAME,
+             --B.PACKAGED_PRODUCT_NAME,
+             E.R_CREATOR_NAME,
+             E.R_MODIFY_DATE,
+             E.R_MODIFIER,
+             E.R_CREATION_DATE,
+             E.BUSINESS_UNIT,
+             E.CONCEPT,
+             E.INFORMATION_CLASSIFICATION,
+             E.SECURITY_DOMAIN,
+             E.IS_ACTIVE,
+             --- E.object_name AS Authorization_NAME,
+             APPL.APPLICATION_NUMBER,
+             APPL.APPLICATION_TYPE_NAME,
+             APPL.TYPE_OF_PROCEDURE,
+             APPL.BASE_APPLICATION_TYPE,
+             (SELECT MAX (TR.TRADE_NAME)
+                FROM TR, PAUTHR
+               WHERE     MEDICINAL_PRODUCT_UID = MEDICINAL_PRODUCT_UID_AUTH
+                     AND PRODUCT_AUTHORISATION_R_OBJECT_ID = A.R_OBJECT_ID)
+                 AS TRADE_NAME,
+             (SELECT MAX (DOSE_FORM_NAME)
+                FROM TR, PAUTHR
+               WHERE     A.MARKET_UID = MARKET_UID
+                     AND A.PRODUCT_FAMILY_UID = PRODUCT_FAMILY_UID
+                     AND HISTORIC_NAME_VALUE = MEDICINAL_PRODUCT_NAME_AUTH
+                     AND PRODUCT_AUTHORISATION_R_OBJECT_ID = A.R_OBJECT_ID)
+                 AS DOSE_FORM_NAME,
+             APPL.R_OBJECT_ID
+                 REGULATORY_APPLICATION_R_OBJECT_ID,
+             (SELECT MAX (DOSE_STRENGTH_NAME)
+                FROM TR, PAUTHR
+               WHERE     A.MARKET_UID = MARKET_UID
+                     AND A.PRODUCT_FAMILY_UID = PRODUCT_FAMILY_UID
+                     AND HISTORIC_NAME_VALUE = MEDICINAL_PRODUCT_NAME_AUTH
+                     AND PRODUCT_AUTHORISATION_R_OBJECT_ID = A.R_OBJECT_ID)
+                 AS DOSE_STRENGTH_NAME,
+             (SELECT MAX (CLASSIFICATION_DOMAIN)
+                FROM TR, PAUTHR
+               WHERE     A.MARKET_UID = MARKET_UID
+                     AND A.PRODUCT_FAMILY_UID = PRODUCT_FAMILY_UID
+                     AND HISTORIC_NAME_VALUE = MEDICINAL_PRODUCT_NAME_AUTH
+                     AND PRODUCT_AUTHORISATION_R_OBJECT_ID = A.R_OBJECT_ID)
+                 AS CLASSIFICATION_DOMAIN,
+             NVL (
+                 (CASE
+                      WHEN TRIM (APPL.TYPE_OF_PROCEDURE) = 'Mutual Recognition'
+                      THEN
+                          ((SELECT DISTINCT MARKET_ROLE
+                              FROM RAPPR
+                             WHERE     REGULATORY_APPLICATION_R_OBJECT_ID =
+                                       APPL.R_OBJECT_ID
+                                   AND TRIM (MARKET_ROLE) =
+                                       TRIM ('Reference Member State')))
+                      WHEN TRIM (APPL.TYPE_OF_PROCEDURE) = 'Centralised'
+                      THEN
+                          ((SELECT DISTINCT MARKET_ROLE
+                              FROM RAPPR
+                             WHERE     REGULATORY_APPLICATION_R_OBJECT_ID =
+                                       APPL.R_OBJECT_ID
+                                   AND TRIM (MARKET_ROLE) = TRIM ('Rapporteur')))
+                      ELSE
+                          ((SELECT DISTINCT MARKET_ROLE
+                              FROM RAPPR
+                             WHERE REGULATORY_APPLICATION_R_OBJECT_ID =
+                                   APPL.R_OBJECT_ID))
+                  END),
+                 'Reviewing Country')
+                 AS MARKET_ROLE,
+             (SELECT MAX (IS_EEA)
+                FROM COSMOSDBEXPORT.MARKET
+               WHERE ISO_COUNTRY_NAME = A.MARKET_NAME)
+                 IS_EEA,(SELECT MAX (IS_EU)
+                FROM COSMOSDBEXPORT.MARKET
+               WHERE ISO_COUNTRY_NAME = A.MARKET_NAME)
+               IS_EU,M.roster_region
+        FROM COSMOSDBEXPORT.PRODUCT_AUTHORISATION A,
+             COSMOSDBEXPORT.REGULATORY_APPLICATION APPL,
+             COSMOSDBEXPORT.OBJECT                E, ----,         COSMOSDBEXPORT.PRODUCT_AUTHORISATION_R B
+             COSMOSDBEXPORT.OBJECT                AO,
+             COSMOSDBEXPORT.MARKET M
+       WHERE     A.REGULATORY_APPLICATION_UID = E.CONFIG_UID
+             AND APPL.R_OBJECT_ID = E.R_OBJECT_ID
+             AND A.R_OBJECT_ID = AO.R_OBJECT_ID
+             AND E.IS_ACTIVE = 'Y'
+             AND AO.IS_ACTIVE = 'Y'
+             AND A.AUTHORISATION_STATUS = 'Approved' --and auth.is_active=true
+             ---AND A.R_OBJECT_ID = B.PRODUCT_AUTHORISATION_R_OBJECT_ID
+             AND APPL.APPLICATION_TYPE_NAME IN
+                     ('Market Authorisation Application',
+                      'New Drug Application',
+                      'New Drug Submission',
+                      'Abbreviated New Drug Application',
+                      'Biologic License Application',
+                      'Article 58',
+                      'Medical Device',
+                      'Product Notification',
+                      'CE Mark')
+             --- AND EXISTS (select 1 from COSMOSDBEXPORT.MARKET where ISO_COUNTRY_NAME=A.MARKET_NAME and IS_EEA='Y')
+             AND EXISTS
+                     (SELECT 1
+                        FROM VW_PSMF_MAA_EAA
+                       WHERE OBJECT_NAME = A.PRODUCT_FAMILY_NAME) and  A.Market_Name = M.ISO_COUNTRY_NAME(+)
+
+    --and E.object_name='Adalimumab - EMEA/H/C/000481 - EU'
+    ---  AND APPL.R_OBJECT_ID ='0800f9f684eb94e2'
+    ORDER BY 1, 2;
