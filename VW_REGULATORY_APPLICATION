@@ -1,0 +1,45 @@
+
+  CREATE OR REPLACE FORCE EDITIONABLE VIEW "SVC_HUBBLE"."VW_REGULATORY_APPLICATION" ("R_OBJECT_ID", "BASE_APPLICATION_TYPE", "TYPE_OF_PROCEDURE", "OBJECT_NAME", "APPLICATION_TYPE_NAME", "APPLICATION_NUMBER", "PRODUCT_FAMILY_NAME", "MARKET_NAME", "REVIEWING_MARKET_NAME", "STUDY_NUMBER", "MEDICINAL_PRODUCT_NAME", "BUSINESS_UNIT", "INFORMATION_CLASSIFICATION", "SECURITY_DOMAIN", "MODIFIED_DATE", "CREATION_DATE", "MODIFIED_BY", "IS_ACTIVE", "HISTORIC_NAME_VALUE", "NAME_VALUE_CHANGE_DATE", "CONFIG_UID", "DOCUMENT_URL", "ROSTER_REGION", "IS_EEA", "IS_EU", "R_VERSION_LABEL", "PRD_CLASSIFICATION_DOMAIN", "PRD_CLASSIFICATION_GROUP", "PRD_CLASSIFICATION_SUBGROUP") DEFAULT COLLATION "USING_NLS_COMP"  AS 
+  SELECT r.r_object_id,
+       BASE_APPLICATION_TYPE,
+       type_of_procedure,
+       o.object_name,
+       application_type_name,
+       application_number,
+       product_family_name,
+       MARKET_NAME,
+       REVIEWING_MARKET_NAME,
+       STUDY_NUMBER,
+       MEDICINAL_PRODUCT_NAME,
+       o.BUSINESS_UNIT,
+       o.INFORMATION_CLASSIFICATION,
+       o.SECURITY_DOMAIN,
+       O.R_MODIFY_DATE MODIFIED_DATE,
+       o.R_CREATION_DATE CREATION_DATE,
+       o.R_MODIFIER MODIFIED_BY,
+       o.IS_ACTIVE,
+       HISTORIC_NAME_VALUE,
+       NAME_VALUE_CHANGE_DATE,
+       o.config_uid,
+       'http://uw00016ek:8080/cara/drl/objectId/' || r.r_object_id || ''
+          AS Document_URL,
+       M.roster_region,(SELECT MAX (IS_EEA)
+                FROM COSMOSDBEXPORT.MARKET
+               WHERE ISO_COUNTRY_NAME = ra.MARKET_NAME)
+                 IS_EEA,(SELECT MAX (IS_EU)
+                FROM COSMOSDBEXPORT.MARKET
+               WHERE ISO_COUNTRY_NAME = ra.MARKET_NAME)
+               IS_EU,
+       ob.r_version_label,
+	   prd.CLASSIFICATION_DOMAIN prd_CLASSIFICATION_DOMAIN,
+	   prd.CLASSIFICATION_GROUP prd_CLASSIFICATION_GROUP,
+	   prd.CLASSIFICATION_SUBGROUP prd_CLASSIFICATION_SUBGROUP
+  FROM COSMOSDBEXPORT.regulatory_application r
+       JOIN cosmosdbexport.regulatory_application_r ra
+          ON r.r_object_id = ra.REGULATORY_APPLICATION_R_OBJECT_ID
+       JOIN cosmosdbexport.object o ON r.r_object_id = o.r_object_id
+       JOIN cosmosdbexport.object_r ob
+          ON ob.OBJECT_R_OBJECT_ID = r.r_object_id
+       LEFT JOIN COSMOSDBEXPORT.MARKET M on ra.market_name = M.ISO_COUNTRY_NAME
+	   JOIN cosmosdbexport.product prd
+	   ON prd.CONFIG_UID=r.PRODUCT_FAMILY_UID;
