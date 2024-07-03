@@ -1,0 +1,53 @@
+
+  CREATE OR REPLACE FORCE EDITIONABLE VIEW "SVC_HUBBLE"."VW_ACT_EVN_CORRES" ("ACTIVITY_NAME", "ACTIVITY_OBJECT_ID", "EVENT_NAME", "EVENT_OBJECT_ID") DEFAULT COLLATION "USING_NLS_COMP"  AS 
+  WITH
+        Activity
+        AS
+            (SELECT DISTINCT b.object_name     AS Activity_name,
+                             b.r_object_id     AS Activity_object_id,
+                             b.PARENT_EVENT_UID,
+                             c.linked_EVENT_UID
+               FROM COSMOSDBEXPORT.regulatory_activity  a
+                    INNER JOIN COSMOSDBEXPORT.SUBMISSION_MANAGER b
+                        ON a.R_OBJECT_ID = b.R_OBJECT_ID
+                    INNER JOIN COSMOSDBEXPORT.SUBMISSION_MANAGER_R C
+                        ON B.R_OBJECT_ID = C.SUBMISSION_MANAGER_R_OBJECT_ID),
+        event
+        AS
+            (SELECT DISTINCT
+                    b.object_name     AS Event_name,
+                    b.r_object_id     AS Event_object_id,
+                    b.config_uid
+               FROM COSMOSDBEXPORT.REGULATORY_EVENT  A
+                    INNER JOIN COSMOSDBEXPORT.SUBMISSION_MANAGER B
+                        ON A.R_OBJECT_ID = B.R_OBJECT_ID
+                    INNER JOIN COSMOSDBEXPORT.SUBMISSION_MANAGER_R C
+                        ON B.R_OBJECT_ID = C.SUBMISSION_MANAGER_R_OBJECT_ID)
+     
+              
+              
+              
+    SELECT DISTINCT Activity_name,
+                    Activity_object_id,
+                    Event_name,
+                    Event_object_id
+                   
+                    
+      FROM (SELECT Activity.Activity_name,
+                   Activity.Activity_object_id,
+                   event.Event_name,
+                   event.Event_object_id
+                  
+              FROM activity
+                   LEFT OUTER JOIN event
+                       ON Activity.PARENT_EVENT_UID = event.config_uid
+            UNION ALL
+            SELECT Activity.Activity_name,
+                   Activity.Activity_object_id,
+                   event.Event_name,
+                   event.Event_object_id
+                 
+              FROM activity
+                   LEFT OUTER JOIN event
+                       ON Activity.linked_event_UID = event.config_uid
+             WHERE Activity.linked_event_UID IS NOT NULL);
