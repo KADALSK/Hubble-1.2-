@@ -1,0 +1,89 @@
+
+  CREATE OR REPLACE FORCE EDITIONABLE VIEW "SVC_HUBBLE"."DOCUMENT_R" as with first_view as(
+  SELECT DISTINCT
+           DOCUMENT_R_OBJECT_ID,
+           submission_manager.object_name as Activty_Event,
+           trim(DOCUMENT_R.PRODUCT_FAMILY_NAME) PRODUCT_FAMILY_NAME,
+           submission_manager.R_object_id
+               Submission_ID,
+           submission_manager.full_description
+               sub_full_description,
+           submission_manager.first_submission_date
+               sub_first_submission_date,
+           submission_manager.reviewing_market_name
+               sub_reviewing_market,
+           submission_manager.agency_approval_date
+               sub_agency_approval_date,
+           smr.change_number
+               smr_change_number,
+           smr.activity_type
+               smr_activity_type,
+           smr.linked_activity_name
+               smr_linked_activity_name,
+           smr.market_approval_date
+               smr_market_approval_date,
+           smr.tracking_number
+               smr_tracking_number,
+           smr.linked_activity_uid
+               smr_linked_activity_UID,
+           DOCUMENT_R.MARKET_NAME,
+           DOCUMENT_R.TYPE_OF_SUBMISSION_NAME,
+           DOCUMENT_R.STUDY_NUMBER,
+           DOCUMENT_R.RESPONSIBLE_PERSON,
+           DOCUMENT_R.REGULATORY_APPLICATION_NAME,
+           DOCUMENT_R.REGULATORY_APPLICATION_UID,
+           DOCUMENT_R.APPLICATION_NUMBER,
+           DOCUMENT_R.APPLICATION_TYPE_NAME,
+           DOCUMENT_R.APPLICATION_TYPE_UID,
+           DOCUMENT_R.GLOBAL_PRODUCT_NAME
+               Global_Product,
+           DOCUMENT_R.GLOBAL_PRODUCT_UID,
+           DOCUMENT_R.MEDICINAL_PRODUCT_NAME,
+           DOCUMENT_R.MEDICINAL_PRODUCT_UID,
+           DOCUMENT_R.SAFETY_SIGNAL_NUMBER,
+           DOCUMENT_R.DOCUMENT_LANGUAGE,
+           DOCUMENT_R.TYPE_OF_PROCEDURE,
+           DOCUMENT_R.legacy_version_label,
+		   DOCUMENT_R.R_VERSION_LABEL,
+           
+               m.roster_region,
+           (SELECT MAX (IS_EEA)
+                FROM COSMOSDBEXPORT.MARKET
+               WHERE ISO_COUNTRY_NAME = DOCUMENT_R.MARKET_NAME)
+                 IS_EEA,(SELECT MAX (IS_EU)
+                FROM COSMOSDBEXPORT.MARKET
+               WHERE ISO_COUNTRY_NAME = DOCUMENT_R.MARKET_NAME)
+               IS_EU
+      FROM COSMOSDBEXPORT.document_r  DOCUMENT_R
+           INNER JOIN COSMOSDBEXPORT.document dca
+               ON dca.R_OBJECT_ID = DOCUMENT_R.DOCUMENT_R_OBJECT_ID
+           LEFT JOIN COSMOSDBEXPORT.submission_manager_r smr
+               ON dca.I_CHRONICLE_ID = smr.ASSEMBLY_ID
+           LEFT JOIN COSMOSDBEXPORT.submission_manager submission_manager
+               ON submission_manager.R_OBJECT_ID =
+                  smr.SUBMISSION_MANAGER_R_OBJECT_ID
+            left join COSMOSDBEXPORT.market m on  document_r.market_name  = m.ISO_COUNTRY_NAME 
+     WHERE   dca.CLASSIFICATION_SUBGROUP IN
+                   ('Main Assembly', 'Sub Assembly')
+           AND 
+        (dca.PROCESS_NAME IN
+                   ('Global Assembly Core Process',
+                    'Local Assembly Core Process') )
+           AND (dca.classification_artifact IN ('Global Assembly',
+                                               'NDA Safety Update',
+                                               'Other Sub Assembly',
+                                               'PDMA',
+                                               'Submission Assembly'))
+           AND (dca.PROCESS_PHASE IN
+
+                   ('Compile, Publish, Submit','Closed',
+                    'Create/Manage Content',
+                    'Manage Commitment'))
+           AND dca.is_assembly = 'Y'),
+
+           second_view as(
+select b.*,a.TA from first_view  b 
+left join  VW_TA_PRDFNM a on b.PRODUCT_FAMILY_NAME = a.product
+)
+
+select * from second_view;
