@@ -1,0 +1,159 @@
+
+  CREATE OR REPLACE FORCE EDITIONABLE VIEW "SVC_HUBBLE"."VW_PRODUCT_AUTHORISATION" ("R_OBJECT_ID", "AUTHORISATION_NUMBER", "IS_ACTIVE", "PRODUCT_FAMILY", "MARKET_NAME", "MEDICINAL_PRODUCT", "AUTHORISATION_STATUS", "INDICATION_NAME", "AUTHORISATION_STATUS_DATE", "AUTHORISATION_TYPE", "VALIDITY_PERIOD_END", "VALIDITY_PERIOD_START", "LAST_MODIFIED", "CREATION_DATE", "MODIFIED_BY", "BUSINESS_UNIT", "INFORMATION_CLASSIFICATION", "SECURITY_DOMAIN", "APPLICATION_NAME", "REGULATORY_ACTIVITY", "PACKAGED_PRODUCT", "AUTHORISATION_HOLDER_NAME", "DATE_OF_FIRST_AUTHORISATION", "MARKET_START_DATE", "MARKET_STOP_DATE", "DATA_EXCLUSIVITY_END", "DATA_EXCLUSIVITY_START", "STUDY_NUMBER", "INVESTIGATION_CODE", "SPONSOR_NAME", "ANTICIPATED_END_DATE", "ORPHAN_INDICATION_TYPE", "CONFIG_ID", "REGULATORY_APPLICATION_UID", "DOCUMENT_URL", "SPECIAL_DESIGNATION", "SPECIAL_DESIGNATION_DATE", "INDICATION_STATUS_DATE", "INDICATION_STATUS", "R_VERSION_LABEL", "ROSTER_REGION", "IS_EEA", "IS_EU", "REVIEWING_MARKET_NAME", "CLASSIFICATION_DOMAIN", "CLASSIFICATION_GROUP", "CLASSIFICATION_SUBGROUP") DEFAULT COLLATION "USING_NLS_COMP"  AS 
+  WITH RAPPR
+        AS (SELECT DISTINCT REGULATORY_APPLICATION_R_OBJECT_ID,
+                            R_INDEX,
+                            MARKET_NAME REVIEWING_MARKET_NAME,
+                            MARKET_ROLE
+              FROM cosmosdbexport.regulatory_application_r outr
+             WHERE     MARKET_ROLE IN
+                          ('Reviewing Country',
+                           'Rapporteur',
+                           'Reference Member State')
+                   AND R_INDEX IN
+                          (SELECT MAX (R_INDEX)
+                             FROM cosmosdbexport.regulatory_application_r inr
+                            WHERE     inr.MARKET_ROLE = outr.MARKET_ROLE
+                                  AND inr.REGULATORY_APPLICATION_R_OBJECT_ID =
+                                         outr.REGULATORY_APPLICATION_R_OBJECT_ID)),
+     first_view
+        AS (SELECT DISTINCT
+                   p.r_object_id,
+                   d.object_name authorisation_number,
+                   d.is_active,
+                   p.product_family_name PRODUCT_FAMILY,
+                   p.market_name MARKET_name,
+                   pr.medicinal_product_name MEDICINAL_PRODUCT,
+                   p.authorisation_status,
+                   pr.INDICATION_NAME,
+                   authorisation_status_date,
+                   authorisation_type,
+                   validity_period_end,
+                   validity_period_start,
+                   d.R_MODIFY_DATE last_modified,
+                   d.R_CREATION_DATE creation_date,
+                   d.R_MODIFIER MODIFIED_BY,
+                   d.business_unit,
+                   d.information_classification,
+                   d.security_domain,
+                   p.regulatory_application_name application_name,
+                   pr.regulatory_activity_name REGULATORY_ACTIVITY,
+                   pr.packaged_product_name PACKAGED_PRODUCT,
+                   p.authorisation_holder_name,
+                   p.date_of_first_authorisation,
+                   p.market_start_date,
+                   p.market_stop_date,
+                   data_exclusivity_end,
+                   data_exclusivity_start,
+                   pr.study_number,
+                   investigation_code,
+                   sponsor_name,
+                   anticipated_end_date,
+                   pr.orphan_indication_type,
+                   d.config_uid config_id,
+                   p.REGULATORY_APPLICATION_UID,
+                      --- 'http://uw00020Qk.abbvienet.dmz:8080/cara/drl/objectId/'|| p.r_object_id|| ''
+                      'http://uw00016ek:8080/cara/drl/objectId/'
+                   || p.r_object_id
+                   || ''
+                      AS Document_URL,
+                   pr.SPECIAL_DESIGNATION,
+                   pr.SPECIAL_DESIGNATION_DATE,
+                   pr.INDICATION_STATUS_DATE,
+                   pr.INDICATION_STATUS,
+                   f.r_version_label,
+                   M.ROSTER_REGION,M.IS_EEA, M.IS_EU,
+				   pd.CLASSIFICATION_DOMAIN,/* added as part of Hubble 1.2 in Jun2024*/
+				   pd.CLASSIFICATION_GROUP,/* added as part of Hubble 1.2 in Jun2024*/
+		           pd.CLASSIFICATION_SUBGROUP/* added as part of Hubble 1.2 in Jun2024*/
+              FROM cosmosdbexport.product_authorisation p
+                   LEFT JOIN cosmosdbexport.product_authorisation_r pr
+                      ON p.r_object_id = pr.product_authorisation_r_object_id
+                   INNER JOIN COSMOSDBEXPORT.OBJECT d
+                      ON /*d.CONFIG_UID = p.REGULATORY_APPLICATION_UID
+                        JOIN COSMOSDBEXPORT.OBJECT dd ON*/
+                        p.r_object_id = d.r_object_id
+				   JOIN COSMOSDBEXPORT.PRODUCT pd ON p.PRODUCT_FAMILY_UID=pd.CONFIG_UID /* added as part of Hubble 1.2 in Jun2024*/
+                   INNER JOIN COSMOSDBEXPORT.OBJECT_r f
+                      ON f.object_r_object_id = d.r_object_id
+                   LEFT JOIN COSMOSDBEXPORT.MARKET M on p.market_name = M.ISO_COUNTRY_NAME),
+     second_view
+        AS (SELECT a.*,
+                   NVL (
+                      (CASE
+                          WHEN TRIM (APPL.TYPE_OF_PROCEDURE) IN
+                                  ('Mutual Recognition', 'Decentralised')
+                          THEN
+                             ( (SELECT DISTINCT MARKET_NAME
+                                  FROM RAPPR
+                                 WHERE     REGULATORY_APPLICATION_R_OBJECT_ID =
+                                              APPL.R_OBJECT_ID
+                                       AND TRIM (MARKET_ROLE) =
+                                              TRIM ('Reference Member State')))
+                          WHEN TRIM (APPL.TYPE_OF_PROCEDURE) = 'Centralised'
+                          THEN
+                             ( (SELECT DISTINCT MARKET_NAME
+                                  FROM RAPPR
+                                 WHERE     REGULATORY_APPLICATION_R_OBJECT_ID =
+                                              APPL.R_OBJECT_ID
+                                       AND TRIM (MARKET_ROLE) =
+                                              TRIM ('Rapporteur')))
+                          ELSE
+                             ( (SELECT DISTINCT MARKET_NAME
+                                  FROM RAPPR
+                                 WHERE REGULATORY_APPLICATION_R_OBJECT_ID =
+                                          APPL.R_OBJECT_ID))
+                       END),
+                      A.MARKET_NAME)
+                      AS REVIEWING_MARKET_NAME
+              FROM first_view a
+                   INNER JOIN COSMOSDBEXPORT.OBJECT d
+                      ON a.r_object_id = d.r_object_id
+                   LEFT JOIN COSMOSDBEXPORT.regulatory_application appl
+                      ON appl.r_object_id = d.r_object_id)
+SELECT "R_OBJECT_ID",
+       "AUTHORISATION_NUMBER",
+       "IS_ACTIVE",
+       "PRODUCT_FAMILY",
+       "MARKET_NAME",
+       "MEDICINAL_PRODUCT",
+       "AUTHORISATION_STATUS",
+       "INDICATION_NAME",
+       "AUTHORISATION_STATUS_DATE",
+       "AUTHORISATION_TYPE",
+       "VALIDITY_PERIOD_END",
+       "VALIDITY_PERIOD_START",
+       "LAST_MODIFIED",
+       "CREATION_DATE",
+       "MODIFIED_BY",
+       "BUSINESS_UNIT",
+       "INFORMATION_CLASSIFICATION",
+       "SECURITY_DOMAIN",
+       "APPLICATION_NAME",
+       "REGULATORY_ACTIVITY",
+       "PACKAGED_PRODUCT",
+       "AUTHORISATION_HOLDER_NAME",
+       "DATE_OF_FIRST_AUTHORISATION",
+       "MARKET_START_DATE",
+       "MARKET_STOP_DATE",
+       "DATA_EXCLUSIVITY_END",
+       "DATA_EXCLUSIVITY_START",
+       "STUDY_NUMBER",
+       "INVESTIGATION_CODE",
+       "SPONSOR_NAME",
+       "ANTICIPATED_END_DATE",
+       "ORPHAN_INDICATION_TYPE",
+       "CONFIG_ID",
+       "REGULATORY_APPLICATION_UID",
+       "DOCUMENT_URL",
+       "SPECIAL_DESIGNATION",
+       "SPECIAL_DESIGNATION_DATE",
+       "INDICATION_STATUS_DATE",
+       "INDICATION_STATUS",
+       "R_VERSION_LABEL",
+       "ROSTER_REGION","IS_EEA", "IS_EU",
+       "REVIEWING_MARKET_NAME",
+ "CLASSIFICATION_DOMAIN",/* added as part of Hubble 1.2 in Jun2024*/
+"CLASSIFICATION_GROUP",/* added as part of Hubble 1.2 in Jun2024*/
+"CLASSIFICATION_SUBGROUP"/* added as part of Hubble 1.2 in Jun2024*/
+  FROM second_view where AUTHORISATION_NUMBER not like '%trash%';
