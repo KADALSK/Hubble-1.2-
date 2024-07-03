@@ -1,0 +1,19 @@
+
+  CREATE OR REPLACE FORCE EDITIONABLE VIEW "SVC_HUBBLE"."VW_CORR_TO_ACTIVITY" ("R_OBJECT_ID", "ACTIVITY_NAME", "PRODUCT_FAMILY", "DOCUMENT_URL") DEFAULT COLLATION "USING_NLS_COMP"  AS 
+  SELECT DISTINCT
+           a.R_OBJECT_ID                                                        R_OBJECT_ID,
+          
+           b.OBJECT_NAME                                                        Activity_Name,
+         
+          
+           product_family_name                                                  Product_Family,
+        
+					 'http://uw00020Qk.abbvienet.dmz:8080/cara/drl/objectId/' || b.r_object_id || ''    AS Document_URL
+     FROM COSMOSDBEXPORT.SUBMISSION_MANAGER  b
+           INNER JOIN COSMOSDBEXPORT.SUBMISSION_MANAGER_R c
+               ON b.R_OBJECT_ID = c.SUBMISSION_MANAGER_R_OBJECT_ID
+           LEFT JOIN COSMOSDBEXPORT.regulatory_activity a
+               ON b.R_OBJECT_ID = a.R_OBJECT_ID
+           LEFT JOIN COSMOSDBEXPORT.DOCUMENT dca
+               ON c.ASSEMBLY_ID = dca.i_chronicle_id
+     WHERE a.R_OBJECT_ID IS NOT NULL;
