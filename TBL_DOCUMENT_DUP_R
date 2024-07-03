@@ -1,0 +1,63 @@
+
+  CREATE OR REPLACE FORCE EDITIONABLE VIEW "SVC_HUBBLE"."TBL_DOCUMENT_DUP_R" ("DOCUMENT_R_OBJECT_ID", "MARKET_NAME", "TYPE_OF_SUBMISSION_NAME", "STUDY_NUMBER", "RESPONSIBLE_PERSON", "REGULATORY_APPLICATION_NAME", "REGULATORY_APPLICATION_UID", "APPLICATION_NUMBER", "APPLICATION_TYPE_NAME", "APPLICATION_TYPE_UID", "GLOBAL_PRODUCT", "GLOBAL_PRODUCT_UID", "MEDICINAL_PRODUCT_NAME", "MEDICINAL_PRODUCT_UID", "SAFETY_SIGNAL_NUMBER", "DOCUMENT_LANGUAGE", "TYPE_OF_PROCEDURE", "LEGACY_VERSION_LABEL", "R_VERSION_LABEL", "EVENT_ASS_LINK", "ACTIVITY_ASS_LINK", "ROSTER_REGION", "IS_EEA", "IS_EU") DEFAULT COLLATION "USING_NLS_COMP"  AS 
+  select distinct  Document_r.document_r_object_id,
+  DOCUMENT_R.MARKET_NAME,
+           DOCUMENT_R.TYPE_OF_SUBMISSION_NAME,
+           DOCUMENT_R.STUDY_NUMBER,
+           DOCUMENT_R.RESPONSIBLE_PERSON,
+           DOCUMENT_R.REGULATORY_APPLICATION_NAME,
+           DOCUMENT_R.REGULATORY_APPLICATION_UID,
+           DOCUMENT_R.APPLICATION_NUMBER,
+           DOCUMENT_R.APPLICATION_TYPE_NAME,
+           DOCUMENT_R.APPLICATION_TYPE_UID,
+           DOCUMENT_R.GLOBAL_PRODUCT_NAME
+               Global_Product,
+           DOCUMENT_R.GLOBAL_PRODUCT_UID,
+           DOCUMENT_R.MEDICINAL_PRODUCT_NAME,
+           DOCUMENT_R.MEDICINAL_PRODUCT_UID,
+           DOCUMENT_R.SAFETY_SIGNAL_NUMBER,
+           DOCUMENT_R.DOCUMENT_LANGUAGE,
+           DOCUMENT_R.TYPE_OF_PROCEDURE,
+           DOCUMENT_R.legacy_version_label,
+		   DOCUMENT_R.R_VERSION_LABEL,
+  
+
+ submission_manager.R_object_id
+               Event_ass_link,
+                submission_manager.R_object_id
+              Activity_ass_link,
+     
+          m.roster_region,
+          (SELECT MAX (IS_EEA)
+                FROM COSMOSDBEXPORT.MARKET
+               WHERE ISO_COUNTRY_NAME = DOCUMENT_R.MARKET_NAME)
+                 IS_EEA,(SELECT MAX (IS_EU)
+                FROM COSMOSDBEXPORT.MARKET
+               WHERE ISO_COUNTRY_NAME = DOCUMENT_R.MARKET_NAME)
+               IS_EU
+      FROM COSMOSDBEXPORT.document_r  DOCUMENT_R
+           INNER JOIN COSMOSDBEXPORT.document dca
+               ON dca.R_OBJECT_ID = DOCUMENT_R.DOCUMENT_R_OBJECT_ID
+           LEFT JOIN COSMOSDBEXPORT.submission_manager_r smr
+               ON dca.I_CHRONICLE_ID = smr.ASSEMBLY_ID
+           LEFT JOIN COSMOSDBEXPORT.submission_manager submission_manager
+               ON submission_manager.R_OBJECT_ID =
+                  smr.SUBMISSION_MANAGER_R_OBJECT_ID
+            left join COSMOSDBEXPORT.market m on  document_r.market_name  = m.iso_country_name 
+            where  dca.CLASSIFICATION_SUBGROUP =
+                   'Main Assembly'
+           AND 
+        dca.PROCESS_NAME IN
+                   ('Global Assembly Core Process',
+                    'Local Assembly Core Process') 
+           AND dca.classification_artifact IN ('Global Assembly',
+                                               'NDA Safety Update',
+                                               'Other Sub Assembly',
+                                               'PDMA',
+                                               'Submission Assembly')
+           AND dca.PROCESS_PHASE IN
+
+                   ('Compile, Publish, Submit','Closed',
+                    'Create/Manage Content',
+                    'Manage Commitment')
+           AND dca.is_assembly = 'Y';
