@@ -1,0 +1,28 @@
+
+  CREATE OR REPLACE FORCE EDITIONABLE VIEW "SVC_HUBBLE"."VW_ACT_CORRES_COUNT" ("R_OBJECT_ID", "DOCUMENT_R_OBJECT_ID", "CORRESPONDENCE_ID", "SUBMISSION_ID") DEFAULT COLLATION "USING_NLS_COMP"  AS 
+  SELECT DISTINCT A.r_object_id,
+                    B.DOCUMENT_R_OBJECT_ID,
+                    D.correspondence_id     AS Correspondence_id,
+                    d.r_object_id        AS Submission_id
+      FROM  COSMOSDBEXPORT.DOCUMENT A
+       INNER JOIN COSMOSDBEXPORT.DOCUMENT_R B
+          ON A.r_object_id = B.DOCUMENT_R_OBJECT_ID
+       LEFT JOIN
+       (SELECT C.correspondence_id,
+               C.submission_manager_r_object_id,
+               D.r_object_id,
+               D.object_name,
+               C.regulatory_application_name,
+               D.IS_ACTIVE
+          FROM COSMOSDBEXPORT.submission_manager_r C
+               INNER JOIN COSMOSDBEXPORT.SUBMISSION_MANAGER D
+                  ON D.r_object_id = C.submission_manager_r_object_id
+         WHERE C.correspondence_id IS NOT NULL) D
+          ON   D.correspondence_id = A.r_object_id 
+       LEFT JOIN
+       (SELECT A.APPLICATION_NUMBER, B.OBJECT_NAME
+          FROM COSMOSDBEXPORT.REGULATORY_APPLICATION A
+               INNER JOIN COSMOSDBEXPORT.OBJECT B
+                  ON A.R_OBJECT_ID = B.R_OBJECT_ID) E
+          ON B.REGULATORY_APPLICATION_NAME = E.OBJECT_NAME
+     WHERE A.CLASSIFICATION_DOMAIN = 'Correspondence'  and b.r_version_label = 'CURRENT';
