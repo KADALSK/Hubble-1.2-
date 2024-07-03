@@ -1,0 +1,119 @@
+
+  CREATE OR REPLACE FORCE EDITIONABLE VIEW "SVC_HUBBLE"."VW_SUBMISSION_EVENTS" ("R_OBJECT_ID", "EVENT_NAME", "EVENT_TYPE", "AGENCY_APPROVAL_DATE", "AGENCY_APPROVAL_STATUS", "AGENCY_NAME", "AGENCY_QUALIFICATION", "AGENCY_RESPONSE", "AGENCY_RESPONSE_DATE", "AGENCY_UID", "APPLICATION_NUMBER", "APPLICATION_TYPE_NAME", "APPLICATION_TYPE_UID", "ASSEMBLY_ID", "BASE_APPLICATION_TYPE", "BU_ABBREV", "BUSINESS_UNIT", "CCDS_CHANGE_DESCRIPTION", "CCDS_CHANGE_IMPLEMENTATION", "CCDS_CHANGE_TYPE", "CHANGE_NUMBER", "ARTIFACT", "CLASSIFICATION_DOMAIN", "MG_GROUP", "SUBGROUP", "COMMITMENT_START_DATE", "COMMITMENT_STATUS", "CONFIG_UID", "CORRESPONDENCE_ID", "DATE_ARCHIVED", "DATE_OPENED", "FIRST_SUBMISSION_DATE", "FULL_DESCRIPTION", "GLOBAL_PRODUCT", "GLOBAL_PRODUCT_UID", "INFORMATION_CLASSIFICATION", "INITIAL_SEQUENCE_NUMBER", "IS_ACTIVE", "IS_CCDS", "IS_ORIGINAL", "LINKED_ACTIVITY_NAME", "LINKED_ACTIVITY_UID", "LINKED_EVENT_NAME", "LINKED_EVENT_UID", "MARKET_APPROVAL_DATE", "MARKET", "MARKET_ROLE", "MARKET_SUBMISSION_DATE", "MARKET_UID", "MEDICINAL_PRODUCT_NAME", "MEDICINAL_PRODUCT_UID", "PACKAGED_PRODUCT_NAME", "PACKAGED_PRODUCT_UID", "PARENT_EVENT_NAME", "PARENT_EVENT_UID", "PROCESS_ACTION_RECORD_ID", "PROCESS_NAME", "PROCESS_PHASE", "PROCESS_STAGE", "PROCESS_STAGE_UID", "PROCESS_UID", "PRODUCT_FAMILY", "PRODUCT_FAMILY_UID", "REFERENCE_MARKET_NAME", "REFERENCE_MARKET_UID", "REGULATORY_APPLICATION_NAME", "REGULATORY_APPLICATION_UID", "RESPONSIBLE_PERSON", "RESPONSIBLE_PERSON_ID", "REVIEWING_MARKET_NAME", "REVIEWING_MARKET_UID", "SAFETY_PV_FLAGGED", "SAFETY_SIGNAL_NUMBER", "SECURITY_DOMAIN", "STUDY_NUMBER", "STUDY_UID", "SUBMISSION_MANAGER_TYPE", "SUPPORTING_DOCUMENT_ID", "TARGET_COMPLETION_DATE", "TRACKING_NUMBER", "TYPE_OF_PROCEDURE", "TYPE_OF_REPORT", "TYPE_OF_SUBMISSION_NAME", "TYPE_OF_SUBMISSION_UID", "WAVE_GROUP", "CREATION_DATE", "LAST_MODIFIED", "REGULATORY_EVENT_ID", "DOCUMENT_URL", "R_VERSION_LABEL", "ROSTER_REGION", "IS_EEA", "IS_EU", "TA") DEFAULT COLLATION "USING_NLS_COMP"  AS 
+  with First_View as ( SELECT DISTINCT
+       b.R_OBJECT_ID R_OBJECT_ID,
+       b.OBJECT_NAME Event_Name,
+       activity_type event_type,
+       agency_approval_date,
+       agency_approval_status,
+       agency_name,
+       agency_qualification,
+       agency_response,
+       agency_response_date,
+       agency_uid,
+       application_number,
+       application_type_name,
+       application_type_uid,
+       assembly_id,
+       base_application_type,
+       bu_abbrev,
+       business_unit,
+       ccds_change_description,
+       ccds_change_implementation,
+       ccds_change_type,
+       change_number,
+       classification_artifact Artifact,
+       classification_domain,
+       classification_group MG_Group,
+       classification_subgroup Subgroup,
+       commitment_start_date,
+       commitment_status,
+       config_uid,
+       correspondence_id,
+       date_archived,
+       date_opened,
+       first_submission_date,
+       full_description,
+       global_product_name Global_Product,
+       global_product_uid,
+       information_classification,
+       initial_sequence_number,
+       is_active,
+       is_ccds,
+       is_original,
+       linked_activity_name,
+       linked_activity_uid,
+       linked_event_name,
+       linked_event_uid,
+       market_approval_date,
+       market_name Market,
+       market_role,
+       market_submission_date,
+       market_uid,
+       medicinal_product_name,
+       medicinal_product_uid,
+       packaged_product_name,
+       packaged_product_uid,
+       parent_event_name,
+       parent_event_uid,
+       process_action_record_id,
+       process_name,
+       process_phase,
+       process_stage_name Process_Stage,
+       process_stage_uid,
+       process_uid,
+       product_family_name Product_Family,
+       product_family_uid,
+       --reconciliation_status,
+       reference_market_name,
+       reference_market_uid,
+       regulatory_application_name,
+       regulatory_application_uid,
+       responsible_person,
+       responsible_person_id,
+       reviewing_market_name,
+       reviewing_market_uid,
+       safety_pv_flagged,
+       safety_signal_number,
+       security_domain,
+       study_number Study_Number,
+       study_uid,
+       submission_manager_type,
+       supporting_document_id,
+       target_completion_date,
+       tracking_number,
+       type_of_procedure,
+       type_of_report,
+       type_of_submission_name,
+       type_of_submission_uid,
+       wave_group,
+       R_CREATION_DATE Creation_Date,
+       R_MODIFY_DATE Last_Modified,
+       a.r_object_id regulatory_event_id,
+       
+       'http://uw00016ek:8080/cara/drl/objectId/' || b.r_object_id || ''
+          AS Document_URL
+          ,R_VERSION_LABEL,
+          m.roster_region,
+          (SELECT MAX (IS_EEA)
+                FROM COSMOSDBEXPORT.MARKET
+               WHERE ISO_COUNTRY_NAME = c.MARKET_NAME)
+                 IS_EEA,(SELECT MAX (IS_EU)
+                FROM COSMOSDBEXPORT.MARKET
+               WHERE ISO_COUNTRY_NAME = c.MARKET_NAME)
+               IS_EU
+  FROM COSMOSDBEXPORT.regulatory_event a
+    inner join COSMOSDBEXPORT.SUBMISSION_MANAGER b on  a.R_OBJECT_ID = b.R_OBJECT_ID   
+     left join COSMOSDBEXPORT.SUBMISSION_MANAGER_R c on  b.R_OBJECT_ID = c.SUBMISSION_MANAGER_R_OBJECT_ID
+left join COSMOSDBEXPORT.market m on  c.market_name = m.iso_country_name),
+
+second_view as(
+select b.*,a.TA from first_view  b 
+left join  VW_TA_PRDFNM a on b.Product_Family = a.product
+)
+
+
+
+
+
+select distinct "R_OBJECT_ID","EVENT_NAME","EVENT_TYPE","AGENCY_APPROVAL_DATE","AGENCY_APPROVAL_STATUS","AGENCY_NAME","AGENCY_QUALIFICATION","AGENCY_RESPONSE","AGENCY_RESPONSE_DATE","AGENCY_UID","APPLICATION_NUMBER","APPLICATION_TYPE_NAME","APPLICATION_TYPE_UID","ASSEMBLY_ID","BASE_APPLICATION_TYPE","BU_ABBREV","BUSINESS_UNIT","CCDS_CHANGE_DESCRIPTION","CCDS_CHANGE_IMPLEMENTATION","CCDS_CHANGE_TYPE","CHANGE_NUMBER","ARTIFACT","CLASSIFICATION_DOMAIN","MG_GROUP","SUBGROUP","COMMITMENT_START_DATE","COMMITMENT_STATUS","CONFIG_UID","CORRESPONDENCE_ID","DATE_ARCHIVED","DATE_OPENED","FIRST_SUBMISSION_DATE","FULL_DESCRIPTION","GLOBAL_PRODUCT","GLOBAL_PRODUCT_UID","INFORMATION_CLASSIFICATION","INITIAL_SEQUENCE_NUMBER","IS_ACTIVE","IS_CCDS","IS_ORIGINAL","LINKED_ACTIVITY_NAME","LINKED_ACTIVITY_UID","LINKED_EVENT_NAME","LINKED_EVENT_UID","MARKET_APPROVAL_DATE","MARKET","MARKET_ROLE","MARKET_SUBMISSION_DATE","MARKET_UID","MEDICINAL_PRODUCT_NAME","MEDICINAL_PRODUCT_UID","PACKAGED_PRODUCT_NAME","PACKAGED_PRODUCT_UID","PARENT_EVENT_NAME","PARENT_EVENT_UID","PROCESS_ACTION_RECORD_ID","PROCESS_NAME","PROCESS_PHASE","PROCESS_STAGE","PROCESS_STAGE_UID","PROCESS_UID","PRODUCT_FAMILY","PRODUCT_FAMILY_UID","REFERENCE_MARKET_NAME","REFERENCE_MARKET_UID","REGULATORY_APPLICATION_NAME","REGULATORY_APPLICATION_UID","RESPONSIBLE_PERSON","RESPONSIBLE_PERSON_ID","REVIEWING_MARKET_NAME","REVIEWING_MARKET_UID","SAFETY_PV_FLAGGED","SAFETY_SIGNAL_NUMBER","SECURITY_DOMAIN","STUDY_NUMBER","STUDY_UID","SUBMISSION_MANAGER_TYPE","SUPPORTING_DOCUMENT_ID","TARGET_COMPLETION_DATE","TRACKING_NUMBER","TYPE_OF_PROCEDURE","TYPE_OF_REPORT","TYPE_OF_SUBMISSION_NAME","TYPE_OF_SUBMISSION_UID","WAVE_GROUP","CREATION_DATE","LAST_MODIFIED","REGULATORY_EVENT_ID","DOCUMENT_URL","R_VERSION_LABEL","ROSTER_REGION","IS_EEA","IS_EU","TA" from second_view;
