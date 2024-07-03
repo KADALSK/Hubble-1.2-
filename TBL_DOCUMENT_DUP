@@ -1,0 +1,48 @@
+
+  CREATE OR REPLACE FORCE EDITIONABLE VIEW "SVC_HUBBLE"."TBL_DOCUMENT_DUP" ("R_OBJECT_ID", "I_CHRONICLE_ID", "OBJECT_NAME", "FULL_TITLE", "SUBMISSION_PLANNED_DATE", "SUBMISSION_ACTUAL_DATE", "TARGET_COMPLETION_DATE", "SUBMISSION_SUBTYPE", "PROCESS_PHASE", "PROCESS_NAME", "PROCESS_STAGE_NAME", "BUSINESS_UNIT", "IS_ACTIVE", "IS_ASSEMBLY", "CLASSIFICATION_SUBGROUP", "DOCUMENT_STATUS", "DOCUMENT_DATE", "EXTERNAL_APPROVAL_DATE", "R_CREATION_DATE", "R_MODIFY_DATE", "CLASSIFICATION_ARTIFACT", "CLASSIFICATION_DOMAIN", "CLASSIFICATION_GROUP", "IB_VERSION", "VERSION_NUMBER", "DOCUMENT_URL") DEFAULT COLLATION "USING_NLS_COMP"  AS 
+  select distinct  
+    dca.R_OBJECT_ID,
+           dca.I_CHRONICLE_ID,
+           TRIM (dca.OBJECT_NAME)    AS Object_Name,
+           dca.FULL_TITLE,
+           dca.SUBMISSION_PLANNED_DATE,
+           dca.SUBMISSION_ACTUAL_DATE,
+           dca.TARGET_COMPLETION_DATE,
+           dca.SUBMISSION_SUBTYPE,
+           dca.PROCESS_PHASE,
+           dca.PROCESS_NAME,
+           dca.PROCESS_STAGE_NAME,
+           dca.BUSINESS_UNIT,
+           dca.IS_ACTIVE,
+           dca.IS_ASSEMBLY,
+           dca.CLASSIFICATION_SUBGROUP,
+           dca.DOCUMENT_STATUS,
+           dca.DOCUMENT_DATE,
+           dca.EXTERNAL_APPROVAL_DATE,
+           dca.R_CREATION_DATE,
+           dca.R_MODIFY_DATE,
+           dca.CLASSIFICATION_ARTIFACT,
+           dca.CLASSIFICATION_DOMAIN,
+           dca.CLASSIFICATION_GROUP,
+           dca.IB_VERSION,
+           dca.VERSION_NUMBER,
+        'http://uw00016ek:8080/cara/drl/objectId/' || dca.r_object_id || ''    AS Document_URL from 
+COSMOSDBEXPORT.document dca
+
+ where  dca.CLASSIFICATION_SUBGROUP =
+                   'Main Assembly'
+           AND 
+        dca.PROCESS_NAME IN
+                   ('Global Assembly Core Process',
+                    'Local Assembly Core Process') 
+           AND dca.classification_artifact IN ('Global Assembly',
+                                               'NDA Safety Update',
+                                               'Other Sub Assembly',
+                                               'PDMA',
+                                               'Submission Assembly')
+           AND dca.PROCESS_PHASE IN
+
+                   ('Compile, Publish, Submit','Closed',
+                    'Create/Manage Content',
+                    'Manage Commitment')
+           AND dca.is_assembly = 'Y';
